@@ -16,6 +16,7 @@ from app.linkedin import SEARCH_TERMS, run
 from app.main import initialize
 from app.diagnostics import summarize
 from app.linkedin import evaluate
+from app.matching import assess
 from app.main import connect
 
 RUN_IDS = ("SDx6ujyjMPFsVVjhc", "qJSc4KLbOwv83jQfB")
@@ -57,14 +58,79 @@ def recover_run(run_id, opener=urlopen):
 
 
 
+
+def review_cache(ai_limit=0):
+    """Offline triage of cached listings; optional explicitly bounded AI calls."""
+    if not CACHE_DIR.exists():
+        raise ValueError("No cached datasets. Recover existing runs first.")
+    records = {}
+    for path in sorted(CACHE_DIR.glob("*.json")):
+        items = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if isinstance(item, dict):
+                key = item.get("url") or (item.get("title"), item.get("companyName"))
+                if key:
+                    records[str(key)] = item
+    report = []
+    ai_used = 0
+    for raw in records.values():
+        reason, normalized = evaluate(raw)
+        entry = {"title": raw.get("title"), "company": raw.get("companyName"),
+                 "url": raw.get("url"), "location": raw.get("location"),
+                 "workType": raw.get("workType"), "classification": reason}
+        if normalized:
+            entry["remote_region"] = normalized["remote_region"]
+        if reason == "unconfirmed_remote" and ai_used < ai_limit:
+            # This is a paid OpenAI assessment, never a new Apify run.
+            job = {"title": raw.get("title"), "company": raw.get("companyName"),
+                   "description": raw.get("description") or "",
+                   "salary_monthly": None, "remote_region": "unknown",
+                   "url": raw.get("url")}
+            try:
+                entry["ai_review"] = assess(job)
+            except Exception as exc:
+                entry["ai_error"] = f"{type(exc).__name__}: {exc}"
+                report.append(entry)
+                print("AI review stopped:", entry["ai_error"])
+                break
+            ai_used += 1
+        report.append(entry)
+    output = CACHE_DIR / "review_report.json"
+    output.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
+    from collections import Counter
+    print("Unique cached jobs:", len(records))
+    print("Classification:", dict(Counter(item["classification"] for item in report)))
+    print("OpenAI assessments:", ai_used)
+    print("Review report:", output)
+    print("Note: Unknown remote or geographic eligibility is NOT confirmed by AI.")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Preview or manually trigger paid LinkedIn job searches")
+    parser.add_argument("--review-cache", action="store_true", help="Review cached jobs offline; no Apify runs")
+    parser.add_argument("--ai-limit", type=int, default=0, help="Optional paid OpenAI reviews (0-10), only with --review-cache")
     parser.add_argument("--recover", nargs="+", metavar="RUN_ID", help="Import existing Apify runs; no actor runs started")
     parser.add_argument("--run", action="store_true", help="Enable paid Apify runs after confirmation")
     parser.add_argument("--limit", type=int, default=10, help="Results per keyword (1-100)")
     parser.add_argument("--max-searches", type=int, default=2, help="Number of searches this invocation (1-26)")
     parser.add_argument("--start", type=int, default=0, help="Starting keyword index (0-25)")
     args = parser.parse_args()
+    if not 0 <= args.ai_limit <= 10:
+        parser.error("--ai-limit must be 0-10")
+    if args.review_cache:
+        if args.run or args.recover:
+            parser.error("--review-cache cannot be combined with --run or --recover")
+        if args.ai_limit:
+            print(f"This will make up to {args.ai_limit} paid OpenAI API calls, and zero Apify actor runs.")
+            if input("Type YES to authorize AI reviews: ") != "YES":
+                print("Cancelled")
+                return
+        review_cache(args.ai_limit)
+        return
+    if args.ai_limit:
+        parser.error("--ai-limit requires --review-cache")
     if args.recover:
         if args.run:
             parser.error("--recover and --run cannot be combined")
