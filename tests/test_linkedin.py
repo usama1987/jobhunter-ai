@@ -1,4 +1,4 @@
-from app.linkedin import evaluate, DEFAULT_INPUT, SEARCH_TERMS
+from app.linkedin import evaluate, classify, DEFAULT_INPUT, SEARCH_TERMS
 
 def sample(**updates):
     job = {"title": "Python Backend Developer", "companyName": "Example",
@@ -14,7 +14,7 @@ def test_actor_input_contract():
 def test_worldwide_remote():
     reason, job = evaluate(sample())
     assert reason == "eligible"
-    assert job["remote_region"] == "worldwide"
+    assert job["remote_region"] == "unknown"  # Worldwide claim does not verify Pakistan eligibility
     assert job["salary_monthly"] == 3000
 
 def test_remote_unknown_region():
@@ -65,3 +65,24 @@ def test_full_time_without_remote_evidence_is_unconfirmed():
 
 def test_full_time_onsite_description_rejected():
     assert evaluate(sample(workType="Full-time", location="Remote", description="This is an on-site role"))[0] == "not_remote"
+
+def test_expired_checked_before_remote():
+    assert classify(sample(postedDate="2025-01-01T00:00:00.000Z", location="Paris", workType="Software Development"))["status"] == "expired"
+
+def test_portuguese_remote():
+    assert classify(sample(location="São Paulo", workType="IT Services and IT Consulting", description="Formato de trabalho: Remoto."))["status"] == "remote_confirmed"
+
+def test_french_hybrid():
+    assert classify(sample(location="Rennes", workType="IT Services and IT Consulting", description="Télétravail possible (hybride)"))["status"] == "hybrid"
+
+def test_hybrid_overrides_generic_remote_company_text():
+    assert classify(sample(location="Lisbon", description="Type of position: Hybrid model in Lisbon. We also have Full Remote projects."))["status"] == "hybrid"
+
+def test_global_company_claim_not_pakistan_eligibility():
+    detail = classify(sample(location="Brazil", workType="IT Services and IT Consulting", description="We work remotely worldwide. 100% remote work (from anywhere)."))
+    assert detail["status"] == "remote_confirmed"
+    assert detail["eligibility"] == "unknown"
+    assert evaluate(sample(location="Brazil", description="100% remote work (from anywhere)."))[1]["remote_region"] == "unknown"
+
+def test_pakistan_explicit():
+    assert classify(sample(description="Remote position. Hiring candidates from Pakistan."))["eligibility"] == "pakistan"
