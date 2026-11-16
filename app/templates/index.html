@@ -17,6 +17,12 @@
 <input name="description" placeholder="Description / skills" class="border rounded-lg p-2">
 <button class="bg-indigo-600 text-white rounded-lg px-5 py-2 md:col-span-3">Save job</button>
 </form></section>
+<form method="get" action="/" class="flex flex-wrap gap-3 items-center mb-3">
+<label class="text-sm font-semibold">Job filters</label>
+<select name="source" class="border rounded-lg p-2"><option value="all">All sources</option><option value="linkedin" {% if source_filter == 'linkedin' %}selected{% endif %}>LinkedIn only</option></select>
+<select name="region" class="border rounded-lg p-2"><option value="all">All regions</option><option value="worldwide" {% if region == 'worldwide' %}selected{% endif %}>Confirmed worldwide</option><option value="unknown" {% if region == 'unknown' %}selected{% endif %}>Remote — eligibility unverified</option></select>
+<button class="bg-indigo-600 text-white rounded-lg px-4 py-2">Filter</button>
+</form>
 <section class="bg-white rounded-xl border overflow-x-auto"><table class="w-full text-sm">
 <thead class="bg-slate-100"><tr><th class="text-left p-3">Job</th><th class="p-3">Salary / month</th><th class="p-3">Region</th><th class="p-3">Heuristic score</th><th class="p-3">AI fit</th><th class="p-3">Status</th></tr></thead>
 <tbody>{% for job in jobs %}<tr class="border-t"><td class="p-3"><a href="{{job.url}}" target="_blank" rel="noopener noreferrer" class="font-semibold text-indigo-700">{{job.title}}</a><div class="text-slate-500">{{job.company}}</div>{% if job.source == "Himalayas" and job.source_url %}<div class="text-xs mt-1">Source: <a class="text-indigo-600 underline" href="{{job.source_url}}" target="_blank" rel="noopener noreferrer">Himalayas</a></div>{% elif job.source %}<div class="text-xs text-slate-500 mt-1">Source: {{job.source}}</div>{% endif %}</td>
