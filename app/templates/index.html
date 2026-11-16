@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>JobHunter AI</title><script src="https://cdn.tailwindcss.com"></script></head>
+<body class="bg-slate-50 text-slate-800"><main class="max-w-6xl mx-auto p-6">
+<header class="mb-8"><h1 class="text-3xl font-bold">JobHunter AI</h1><p class="text-slate-500">Personal job discovery and application tracker</p></header>
+<div class="grid grid-cols-2 md:grid-cols-6 gap-3 mb-8">
+{% for status in ['discovered','shortlisted','applied','interview','rejected','offer'] %}
+<div class="bg-white rounded-xl p-4 border"><div class="text-xs uppercase text-slate-500">{{status}}</div><div class="text-2xl font-semibold">{{counts.get(status,0)}}</div></div>
+{% endfor %}</div>
+<section class="bg-white rounded-xl border p-5 mb-8"><h2 class="text-xl font-semibold mb-4">Add a job</h2>
+<form method="post" action="/jobs" class="grid md:grid-cols-3 gap-3">
+<input name="title" required placeholder="Job title" class="border rounded-lg p-2">
+<input name="company" required placeholder="Company" class="border rounded-lg p-2">
+<input name="url" type="url" required placeholder="https://job-posting-url" class="border rounded-lg p-2">
+<input name="salary_monthly" type="number" min="0" placeholder="Monthly USD salary" class="border rounded-lg p-2">
+<select name="remote_region" class="border rounded-lg p-2"><option value="unknown">Eligibility unknown</option><option value="worldwide">Worldwide</option><option value="pakistan">Pakistan eligible</option><option value="restricted">Restricted</option></select>
+<input name="description" placeholder="Description / skills" class="border rounded-lg p-2">
+<button class="bg-indigo-600 text-white rounded-lg px-5 py-2 md:col-span-3">Save job</button>
+</form></section>
+<section class="bg-white rounded-xl border overflow-x-auto"><table class="w-full text-sm">
+<thead class="bg-slate-100"><tr><th class="text-left p-3">Job</th><th class="p-3">Salary / month</th><th class="p-3">Region</th><th class="p-3">Heuristic score</th><th class="p-3">Status</th></tr></thead>
+<tbody>{% for job in jobs %}<tr class="border-t"><td class="p-3"><a href="{{job.url}}" target="_blank" rel="noopener noreferrer" class="font-semibold text-indigo-700">{{job.title}}</a><div class="text-slate-500">{{job.company}}</div></td>
+<td class="p-3 text-center">{{'$' ~ job.salary_monthly if job.salary_monthly is not none else 'Unknown'}}</td><td class="p-3 text-center">{{job.remote_region}}</td><td class="p-3 text-center">{{job.score}}/100</td>
+<td class="p-3"><form method="post" action="/jobs/{{job.id}}/status"><select name="status" onchange="this.form.submit()" class="border rounded p-1">{% for status in ['discovered','shortlisted','applied','interview','rejected','offer'] %}<option value="{{status}}" {% if job.status==status %}selected{% endif %}>{{status}}</option>{% endfor %}</select></form></td></tr>
+{% else %}<tr><td colspan="5" class="p-8 text-center text-slate-500">No jobs yet. Add your first opportunity above.</td></tr>{% endfor %}</tbody></table></section>
+<p class="mt-5 text-xs text-slate-500">Scores are keyword heuristics, not AI compatibility ratings. Verify salary and hiring eligibility before applying.</p>
+</main></body></html>
