@@ -18,10 +18,10 @@
 <button class="bg-indigo-600 text-white rounded-lg px-5 py-2 md:col-span-3">Save job</button>
 </form></section>
 <section class="bg-white rounded-xl border overflow-x-auto"><table class="w-full text-sm">
-<thead class="bg-slate-100"><tr><th class="text-left p-3">Job</th><th class="p-3">Salary / month</th><th class="p-3">Region</th><th class="p-3">Heuristic score</th><th class="p-3">Status</th></tr></thead>
+<thead class="bg-slate-100"><tr><th class="text-left p-3">Job</th><th class="p-3">Salary / month</th><th class="p-3">Region</th><th class="p-3">Heuristic score</th><th class="p-3">AI fit</th><th class="p-3">Status</th></tr></thead>
 <tbody>{% for job in jobs %}<tr class="border-t"><td class="p-3"><a href="{{job.url}}" target="_blank" rel="noopener noreferrer" class="font-semibold text-indigo-700">{{job.title}}</a><div class="text-slate-500">{{job.company}}</div></td>
-<td class="p-3 text-center">{{'$' ~ job.salary_monthly if job.salary_monthly is not none else 'Unknown'}}</td><td class="p-3 text-center">{{job.remote_region}}</td><td class="p-3 text-center">{{job.score}}/100</td>
+<td class="p-3 text-center">{{'$' ~ job.salary_monthly if job.salary_monthly is not none else 'Unknown'}}</td><td class="p-3 text-center">{{job.remote_region}}</td><td class="p-3 text-center">{{job.score}}/100</td><td class="p-3 text-center">{% if job.ai_score is not none %}<strong>{{job.ai_score}}/100</strong><div class="text-xs text-slate-500">{{job.ai_verdict}} · Eligibility: {{job.ai_eligibility}} · Salary: {{job.ai_salary_fit}}</div><div class="text-xs text-slate-500 max-w-xs">{{job.ai_summary}}</div>{% else %}<span class="text-slate-400">Not assessed</span>{% endif %}</td>
 <td class="p-3"><form method="post" action="/jobs/{{job.id}}/status"><select name="status" onchange="this.form.submit()" class="border rounded p-1">{% for status in ['discovered','shortlisted','applied','interview','rejected','offer'] %}<option value="{{status}}" {% if job.status==status %}selected{% endif %}>{{status}}</option>{% endfor %}</select></form></td></tr>
-{% else %}<tr><td colspan="5" class="p-8 text-center text-slate-500">No jobs yet. Add your first opportunity above.</td></tr>{% endfor %}</tbody></table></section>
-<p class="mt-5 text-xs text-slate-500">Scores are keyword heuristics, not AI compatibility ratings. Verify salary and hiring eligibility before applying.</p>
+{% else %}<tr><td colspan="6" class="p-8 text-center text-slate-500">No jobs yet. Add your first opportunity above.</td></tr>{% endfor %}</tbody></table></section>
+<p class="mt-5 text-xs text-slate-500">Heuristic scores are keyword-based. AI fit scores are subjective assessments, not hiring probabilities. Verify salary and Pakistan eligibility with employers before applying.</p>
 </main></body></html>
