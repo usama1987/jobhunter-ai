@@ -33,33 +33,36 @@ def eligibility(job):
     # No country restrictions is not confirmation of Pakistan eligibility.
     return "unknown"
 
-def normalize(job, now=None):
+def evaluate(job, now=None):
     if not isinstance(job, dict):
-        return None
+        return "missing_fields", None
     title = str(job.get("title") or "").strip()
     company = str(job.get("companyName") or "").strip()
     url = str(job.get("applicationLink") or "").strip()
     guid = str(job.get("guid") or "").strip()
     if not title or not company or not url.startswith("https://") or not guid.startswith("https://himalayas.app/"):
-        return None
+        return "missing_fields", None
     if not any(term in title.lower() for term in TARGET_TERMS):
-        return None
+        return "unrelated_title", None
     region = eligibility(job)
     if region == "restricted":
-        return None
+        return "restricted_region", None
     now = now or datetime.now(timezone.utc).timestamp()
     expiry = job.get("expiryDate")
     if isinstance(expiry, (int, float)) and expiry <= now:
-        return None
+        return "expired", None
     salary = salary_monthly(job)
     if salary is not None and salary < 2000:
-        return None
+        return "below_salary_target", None
     description = re.sub(r"<[^>]+>", " ", str(job.get("description") or ""))
-    return {"title": title[:300], "company": company[:300], "url": url[:2000],
+    return "eligible", {"title": title[:300], "company": company[:300], "url": url[:2000],
             "description": description[:10000], "salary_monthly": salary,
             "remote_region": region, "score": score_job(title, description, salary, region),
             "source": "Himalayas", "source_url": guid[:2000],
             "expires_at": datetime.fromtimestamp(expiry, timezone.utc).isoformat() if isinstance(expiry, (int, float)) else None}
+
+def normalize(job, now=None):
+    return evaluate(job, now=now)[1]
 
 def fetch_pages(pages=3, opener=urlopen):
     if not 1 <= pages <= 10:
@@ -99,4 +102,5 @@ def ingest(jobs):
     return {"added": added, "skipped": skipped, "source": "Himalayas"}
 
 def run(pages=3):
-    return ingest(fetch_pages(pages=pages))
+    from app.diagnostics import summarize
+    return summarize(fetch_pages(pages=pages), evaluate, connect)
