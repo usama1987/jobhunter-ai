@@ -60,7 +60,7 @@ def evaluate(raw):
     remote_evidence = (
         "remote" in work_type
         or "remote" in location
-        or bool(re.search(r"\\bremote (?:work|working|position|role|job)\\b", title.lower()))
+        or bool(re.search(r"\bremote (?:work|working|position|role|job)\b", title.lower()))
         or any(term in description.lower() for term in (
             "fully remote", "100% remote", "remote-first", "remote position",
             "remote role", "work remotely", "work from home", "remote work",
