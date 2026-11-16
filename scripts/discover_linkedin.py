@@ -18,6 +18,7 @@ from app.diagnostics import summarize
 from app.linkedin import evaluate, classify
 from app.matching import assess
 from app.main import connect
+from app.diagnostics import canonical_url
 
 RUN_IDS = ("SDx6ujyjMPFsVVjhc", "qJSc4KLbOwv83jQfB")
 CACHE_DIR = Path(__file__).resolve().parents[1] / "apify_cache"
@@ -74,7 +75,7 @@ def review_cache(ai_limit=0):
             continue
         for item in items:
             if isinstance(item, dict):
-                key = item.get("url") or (item.get("title"), item.get("companyName"))
+                key = canonical_url(item.get("url") or "") or (item.get("title"), item.get("companyName"))
                 if key:
                     records[str(key)] = item
     report = []
@@ -106,6 +107,12 @@ def review_cache(ai_limit=0):
     from collections import Counter
     print("Unique cached jobs:", len(records))
     print("Classification:", dict(Counter(item["classification"] for item in report)))
+    print("Remote coverage:", dict(Counter(item["remote_detail"].get("coverage", "unknown") for item in report if item["classification"] == "eligible")))
+    print("Pakistan eligibility:", dict(Counter(item["remote_detail"].get("eligibility", "unknown") for item in report if item["classification"] == "eligible")))
+    print("Promising LinkedIn candidates:")
+    for item in report:
+        if item["classification"] == "eligible":
+            print(" -", item["title"], "|", item["company"], "|", item["url"])
     print("OpenAI assessments:", ai_used)
     print("Review report:", output)
     print("Note: Unknown remote or geographic eligibility is NOT confirmed by AI.")
