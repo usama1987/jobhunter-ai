@@ -7,6 +7,23 @@
 {% for status in ['discovered','shortlisted','applied','interview','rejected','offer'] %}
 <div class="bg-white rounded-xl p-4 border"><div class="text-xs uppercase text-slate-500">{{status}}</div><div class="text-2xl font-semibold">{{counts.get(status,0)}}</div></div>
 {% endfor %}</div>
+<section class="mb-8">
+<h2 class="text-xl font-semibold mb-2">LinkedIn cached review</h2>
+<p class="text-sm text-slate-500 mb-4">Read-only classification from apify_cache/review_report.json. Remote does not prove Pakistan eligibility. No API calls.</p>
+<div class="grid md:grid-cols-3 gap-4">
+{% for key, heading, tone in [('priority','Priority · remote evidence','emerald'),('verify','Needs verification','amber'),('rejected','Excluded · review reasons','slate')] %}
+<div class="bg-white rounded-xl border p-4">
+<h3 class="font-semibold mb-3">{{heading}} <span class="text-slate-500">({{linkedin_review[key]|length}})</span></h3>
+<div class="space-y-3 max-h-96 overflow-y-auto">
+{% for item in linkedin_review[key] %}
+<div class="border-t pt-2 text-sm"><a class="font-semibold text-indigo-700 hover:underline" href="{{item.url}}" target="_blank" rel="noopener noreferrer">{{item.title}}</a>
+<div class="text-slate-600">{{item.company}}</div>
+<div class="text-xs text-slate-500">Reason: {{item.status|replace('_',' ')}}{% if item.evidence %} · {{item.evidence}}{% endif %}</div>
+<div class="text-xs text-slate-500">Pakistan eligibility: {{item.eligibility}}</div></div>
+{% else %}<p class="text-sm text-slate-400">No cached jobs in this group.</p>{% endfor %}
+</div></div>
+{% endfor %}
+</div></section>
 <section class="bg-white rounded-xl border p-5 mb-8"><h2 class="text-xl font-semibold mb-4">Add a job</h2>
 <form method="post" action="/jobs" class="grid md:grid-cols-3 gap-3">
 <input name="title" required placeholder="Job title" class="border rounded-lg p-2">
