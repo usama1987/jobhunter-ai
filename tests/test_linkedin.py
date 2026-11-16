@@ -14,7 +14,7 @@ def test_actor_input_contract():
 def test_worldwide_remote():
     reason, job = evaluate(sample())
     assert reason == "eligible"
-    assert job["remote_region"] == "unknown"  # Worldwide claim does not verify Pakistan eligibility
+    assert job["remote_region"] == "worldwide"  # Coverage is distinct from Pakistan eligibility
     assert job["salary_monthly"] == 3000
 
 def test_remote_unknown_region():
@@ -82,7 +82,18 @@ def test_global_company_claim_not_pakistan_eligibility():
     detail = classify(sample(location="Brazil", workType="IT Services and IT Consulting", description="We work remotely worldwide. 100% remote work (from anywhere)."))
     assert detail["status"] == "remote_confirmed"
     assert detail["eligibility"] == "unknown"
-    assert evaluate(sample(location="Brazil", description="100% remote work (from anywhere)."))[1]["remote_region"] == "unknown"
+    assert evaluate(sample(location="Brazil", description="100% remote work (from anywhere)."))[1]["remote_region"] == "worldwide"
 
 def test_pakistan_explicit():
     assert classify(sample(description="Remote position. Hiring candidates from Pakistan."))["eligibility"] == "pakistan"
+
+def test_french_part_week_telework_is_hybrid():
+    detail = classify(sample(title="[CDI] Backend Engineer | 2 j de TT/semaine", location="Paris", workType="IT Services", description="Python Django"))
+    assert detail["status"] == "hybrid"
+    assert evaluate(sample(title="Python Backend Engineer | 2 j de TT/semaine"))[0] == "not_remote"
+
+
+def test_worldwide_coverage_does_not_confirm_pakistan():
+    detail = classify(sample(location="Brazil", description="100% remote work (from anywhere)."))
+    assert detail["coverage"] == "worldwide"
+    assert detail["eligibility"] == "unknown"
