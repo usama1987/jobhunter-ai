@@ -7,7 +7,7 @@ from urllib.request import Request, urlopen
 from app.main import connect, score_job
 
 REMOTIVE_URL = "https://remotive.com/api/remote-jobs?category=software-dev"
-TARGET_TERMS = ("python", "fastapi", "backend", "back-end", "full stack", "full-stack", "saas", "ai engineer", "ai developer")
+TARGET_TERMS = ("python", "fastapi", "backend", "back-end", "back end", "full stack", "full-stack", "fullstack", "software engineer", "software developer", "web developer", "api developer", "saas", "ai engineer", "ai developer", "machine learning engineer")
 ALLOWED_REGIONS = ("worldwide", "anywhere", "global", "pakistan")
 BLOCKED_REGIONS = ("us only", "usa only", "united states only", "canada only", "europe only", "eu only", "uk only")
 MAX_ITEMS = 250
@@ -46,26 +46,39 @@ def classify_region(candidate):
     return "unknown"
 
 
-def normalize(job):
+def evaluate(job):
+    if not isinstance(job, dict):
+        return "missing_fields", None
+    result = _normalize_with_reason(job)
+    return result
+
+
+def _normalize_with_reason(job):
     title = str(job.get("title") or "").strip()
     company = str(job.get("company_name") or "").strip()
     url = str(job.get("url") or "").strip()
     if not title or not company or not url.startswith("https://"):
-        return None
+        return "missing_fields", None
     if not any(term in title.lower() for term in TARGET_TERMS):
-        return None
+        return "unrelated_title", None
     salary = parse_monthly_usd(job.get("salary"))
     region = classify_region(job.get("candidate_required_location"))
-    if region == "restricted" or (salary is not None and salary < 2000):
-        return None
+    if region == "restricted":
+        return "restricted_region", None
+    if salary is not None and salary < 2000:
+        return "below_salary_target", None
     description = re.sub(r"<[^>]+>", " ", str(job.get("description") or ""))
-    return {
+    return "eligible", {
         "title": title[:300], "company": company[:300], "url": url[:2000],
         "description": description[:10000], "salary_monthly": salary,
         "remote_region": region,
         "score": score_job(title, description, salary, region),
         "source": "Remotive", "source_url": url[:2000],
     }
+
+
+def normalize(job):
+    return evaluate(job)[1]
 
 
 def fetch_remotive(opener=urlopen):
@@ -98,4 +111,5 @@ def ingest(jobs):
 
 
 def run():
-    return ingest(fetch_remotive())
+    from app.diagnostics import summarize
+    return summarize(fetch_remotive(), evaluate, connect)
