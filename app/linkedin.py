@@ -14,7 +14,27 @@ from app.main import connect, score_job
 
 ACTOR = "valig/linkedin-jobs-scraper"
 API_ROOT = "https://api.apify.com/v2/acts"
-DEFAULT_INPUT = {"easyApply": False, "keywords": "python developer", "location": "remote", "under10Applicants": False, "limit": 100}
+SEARCH_TERMS = (
+    "Python Developer", "Python Engineer", "Backend Developer", "Backend Engineer",
+    "FastAPI Developer", "API Developer", "REST API Developer", "Full Stack Developer",
+    "Full Stack Engineer", "Python Full Stack Developer", "SaaS Developer", "SaaS Engineer",
+    "SaaS Backend Developer", "AI Developer", "AI Engineer", "AI Integration Engineer",
+    "Automation Developer", "Web Developer", "Web Application Developer", "WordPress Developer",
+    "Shopify Developer", "Shopify App Developer", "E-commerce Developer", "Lead Developer",
+    "Technical Lead", "Software Architect",
+)
+DEFAULT_INPUT = {"easyApply": False, "keywords": "Python Developer", "location": "remote", "under10Applicants": False, "limit": 20}
+TITLE_TERMS = ("python", "fastapi", "backend", "back-end", "back end", "full stack", "full-stack",
+               "fullstack", "software engineer", "software architect", "software developer",
+               "api developer", "saas", "ai engineer", "ai developer", "automation developer",
+               "web developer", "wordpress", "shopify", "e-commerce", "ecommerce", "technical lead",
+               "lead developer", "machine learning engineer")
+ONSITE = ("on-site", "onsite", "on site", "in-person", "in person", "office-based",
+          "office based", "work from office", "must relocate", "relocation required",
+          "not remote", "no remote", "offline interview", "work from an office")
+REGIONAL_REMOTE = ("remote from anywhere in", "remotely from anywhere in", "remote within",
+                   "remote only within", "must live in", "must be located in", "based in the",
+                   "eligible to work in", "authorized to work in")
 RESTRICTED = ("united states only", "us only", "usa only", "uk only", "europe only", "eu only", "canada only", "must be based in", "must reside in", "residents only", "work authorization required")
 GLOBAL = ("worldwide", "work from anywhere", "anywhere in the world", "globally", "global remote", "remote worldwide")
 
@@ -27,7 +47,7 @@ def evaluate(raw):
     url = str(raw.get("url") or "").strip()
     if not title or not company or not url.startswith("https://"):
         return "missing_fields", None
-    if not any(term in title.lower() for term in TARGET_TERMS):
+    if not any(term in title.lower() for term in TITLE_TERMS):
         return "unrelated_title", None
     work_type = str(raw.get("workType") or "").lower().strip()
     location = str(raw.get("location") or "").lower().strip()
@@ -39,7 +59,7 @@ def evaluate(raw):
         return "not_remote", None
     if not work_type and "remote" not in location and not any(s in lower for s in GLOBAL):
         return "unconfirmed_remote", None
-    if any(term in lower for term in RESTRICTED):
+    if any(term in description.lower() for term in ONSITE):\n        return "not_remote", None\n    if any(term in lower for term in REGIONAL_REMOTE):\n        return "restricted_region", None\n    if any(term in lower for term in RESTRICTED):
         return "restricted_region", None
     salary = parse_monthly_usd(str(raw.get("salary") or ""))
     if salary is not None and salary < 2000:
@@ -54,7 +74,7 @@ def evaluate(raw):
                 return "expired", None
         except ValueError:
             pass
-    region = "worldwide" if any(s in lower for s in GLOBAL) else "unknown"
+    region = "worldwide" if any(s in location or s in description.lower() for s in GLOBAL) else "unknown"
     description = re.sub(r"<[^>]+>", " ", description).strip()
     return "eligible", {
         "title": title[:300], "company": company[:300], "url": url[:2000],
@@ -64,7 +84,7 @@ def evaluate(raw):
     }
 
 
-def fetch_jobs(limit=100, opener=urlopen):
+def fetch_jobs(limit=20, keyword="Python Developer", opener=urlopen):
     """Triggers a billable run only when explicitly invoked by the user."""
     if not 1 <= limit <= 100:
         raise ValueError("limit must be 1-100")
@@ -73,7 +93,7 @@ def fetch_jobs(limit=100, opener=urlopen):
     if not token:
         raise ValueError("Set APIFY_API_TOKEN in your local .env file")
     actor = os.getenv("APIFY_ACTOR_ID", ACTOR).strip().replace("/", "~")
-    payload = dict(DEFAULT_INPUT, limit=limit)
+    payload = dict(DEFAULT_INPUT, limit=limit, keywords=keyword)
     url = f"{API_ROOT}/{quote(actor, safe='~')}/run-sync-get-dataset-items"
     request = Request(url, data=json.dumps(payload).encode("utf-8"), method="POST",
                       headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json",
@@ -85,6 +105,6 @@ def fetch_jobs(limit=100, opener=urlopen):
     return data
 
 
-def run(limit=100, jobs=None):
+def run(limit=20, jobs=None, keyword="Python Developer"):
     """Use jobs=... for free offline testing; otherwise invokes paid Apify actor."""
-    return summarize(fetch_jobs(limit) if jobs is None else jobs, evaluate, connect)
+    return summarize(fetch_jobs(limit, keyword=keyword) if jobs is None else jobs, evaluate, connect)
