@@ -33,7 +33,9 @@ def initialize():
         existing = {r[1] for r in con.execute("PRAGMA table_info(jobs)")}
         for name, sql_type in (("ai_score", "INTEGER"), ("ai_verdict", "TEXT"),
                                ("ai_summary", "TEXT"), ("ai_eligibility", "TEXT"),
-                               ("ai_salary_fit", "TEXT"), ("ai_details", "TEXT")):
+                               ("ai_salary_fit", "TEXT"), ("ai_details", "TEXT"),
+                               ("source", "TEXT"), ("source_url", "TEXT"),
+                               ("expires_at", "TEXT")):
             if name not in existing:
                 con.execute(f"ALTER TABLE jobs ADD COLUMN {name} {sql_type}")
 
@@ -61,8 +63,8 @@ app = FastAPI(title="JobHunter AI", lifespan=lifespan)
 @app.get("/")
 def dashboard(request: Request):
     with connect() as con:
-        jobs = con.execute("SELECT * FROM jobs ORDER BY score DESC, created_at DESC").fetchall()
-        counts = {r["status"]: r["n"] for r in con.execute("SELECT status, COUNT(*) n FROM jobs GROUP BY status")}
+        jobs = con.execute("SELECT * FROM jobs WHERE expires_at IS NULL OR expires_at > strftime('%Y-%m-%dT%H:%M:%S', 'now') ORDER BY score DESC, created_at DESC").fetchall()
+        counts = {r["status"]: r["n"] for r in con.execute("SELECT status, COUNT(*) n FROM jobs WHERE expires_at IS NULL OR expires_at > strftime('%Y-%m-%dT%H:%M:%S', 'now') GROUP BY status")}
     return templates.TemplateResponse(request, "index.html", {"jobs": jobs, "counts": counts})
 
 
@@ -93,4 +95,4 @@ def update_status(job_id: int, status: str = Form(...)):
 @app.get("/api/jobs")
 def list_jobs():
     with connect() as con:
-        return [dict(r) for r in con.execute("SELECT * FROM jobs ORDER BY score DESC")]
+        return [dict(r) for r in con.execute("SELECT * FROM jobs WHERE expires_at IS NULL OR expires_at > strftime('%Y-%m-%dT%H:%M:%S', 'now') ORDER BY score DESC")]
