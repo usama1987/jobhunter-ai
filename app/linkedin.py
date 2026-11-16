@@ -3,7 +3,7 @@ import json
 import os
 import re
 from datetime import datetime, timezone
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
 from dotenv import load_dotenv
@@ -118,17 +118,20 @@ def evaluate(raw):
     }
 
 
-def fetch_jobs(limit=20, keyword="Python Developer", opener=urlopen):
+def fetch_jobs(limit=20, keyword="Python Developer", opener=urlopen, max_charge_usd=0.50):
     """Triggers a billable run only when explicitly invoked by the user."""
     if not 1 <= limit <= 100:
         raise ValueError("limit must be 1-100")
+    if not 0 < max_charge_usd <= 0.50:
+        raise ValueError("Actor run budget must be between $0 and $0.50")
     load_dotenv()
     token = os.getenv("APIFY_API_TOKEN", "").strip()
     if not token:
         raise ValueError("Set APIFY_API_TOKEN in your local .env file")
     actor = os.getenv("APIFY_ACTOR_ID", ACTOR).strip().replace("/", "~")
     payload = dict(DEFAULT_INPUT, limit=limit, keywords=keyword)
-    url = f"{API_ROOT}/{quote(actor, safe='~')}/run-sync-get-dataset-items"
+    params = urlencode({"maxTotalChargeUsd": f"{max_charge_usd:.2f}", "maxItems": limit, "restartOnError": "false"})
+    url = f"{API_ROOT}/{quote(actor, safe='~')}/run-sync-get-dataset-items?{params}"
     request = Request(url, data=json.dumps(payload).encode("utf-8"), method="POST",
                       headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json",
                                "User-Agent": "JobHunterAI/0.5"})
