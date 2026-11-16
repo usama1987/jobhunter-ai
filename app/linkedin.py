@@ -70,24 +70,24 @@ def classify(raw):
         return match.group(0) if match else None
     # Explicit vacancy-specific hybrid/on-site language takes priority over
     # company boilerplate describing other available work arrangements.
-    hybrid = found(r"\\bhybrid\\b|télétravail possible \\(hybride\\)|hybrid model")
-    onsite = found(r"\\b(?:on[- ]site|in[- ]person only|office[- ]based|must relocate|work from office)\\b")
+    hybrid = found(r"\bhybrid\b|télétravail possible \(hybride\)|hybrid model")
+    onsite = found(r"\b(?:on[- ]site|in[- ]person only|office[- ]based|must relocate|work from office|offline interview|interview offline)\b")
     onsite_interview = found(r"interview (?:at|in) (?:our|the) office|échange dans nos bureaux")
     if "hybrid" in location or "hybrid" in work_type or hybrid:
         return {"status": "hybrid", "eligibility": "restricted", "evidence": hybrid or location}
     if "onsite" in work_type or "on-site" in work_type or onsite or onsite_interview:
         return {"status": "onsite", "eligibility": "restricted", "evidence": onsite or onsite_interview or work_type}
-    restricted = found(r"\\b(?:united states|usa|uk|canada|europe|eu) only\\b|remote(?:ly)? (?:from anywhere )?in [A-Z][a-z]+|must (?:reside|live|be located|be based) in|work authorization required")
+    restricted = found(r"\b(?:united states|usa|uk|canada|europe|eu) only\b|remote(?:ly)? (?:from anywhere )?in [A-Z][a-z]+|must (?:reside|live|be located|be based) in|work authorization required")
     if restricted:
         return {"status": "region_restricted", "eligibility": "restricted", "evidence": restricted}
-    remote = found(r"100% remote|fully remote|remote[- ]first|remote (?:work|working|position|role|job)|work remotely|work from home|work from anywhere|anywhere in the world|formato de trabalho:\\s*remoto|\\btrabalho remoto\\b|\\bteletrabalho\\b|\\btélétravail complet\\b")
+    remote = found(r"100% remote|fully remote|remote[- ]first|remote (?:work|working|position|role|job)|work remotely|work from home|work from anywhere|anywhere in the world|formato de trabalho:\s*remoto|\btrabalho remoto\b|\bteletrabalho\b|\btélétravail complet\b")
     if not remote and ("remote" in location or "remoto" in location or work_type.strip() == "remote"):
         remote = location or work_type
     if not remote:
         return {"status": "remote_unverified", "eligibility": "unknown", "evidence": ""}
     # Explicit Pakistan inclusion is stronger than a generic 'worldwide' slogan.
-    pakistan = found(r"\\b(?:hiring|applicants|candidates|work from|based in|located in)\\s+(?:from\\s+)?pakistan\\b|\\bpakistan\\s+(?:eligible|accepted|welcome)\\b")
-    anywhere = found(r"100% remote work \\(from anywhere\\)|remote worldwide|work from anywhere|anywhere in the world")
+    pakistan = found(r"\b(?:hiring|applicants|candidates|work from|based in|located in)\s+(?:from\s+)?pakistan\b|\bpakistan\s+(?:eligible|accepted|welcome)\b")
+    anywhere = found(r"100% remote work \(from anywhere\)|remote worldwide|work from anywhere|anywhere in the world")
     eligibility = "pakistan" if pakistan else "unknown"
     return {"status": "remote_confirmed", "eligibility": eligibility,
             "evidence": remote, "global_claim": bool(anywhere)}
