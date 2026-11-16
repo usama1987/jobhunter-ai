@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 from app.linkedin import SEARCH_TERMS, run
 from app.main import initialize
 from app.diagnostics import summarize
-from app.linkedin import evaluate
+from app.linkedin import evaluate, classify
 from app.matching import assess
 from app.main import connect
 
@@ -83,7 +83,7 @@ def review_cache(ai_limit=0):
         reason, normalized = evaluate(raw)
         entry = {"title": raw.get("title"), "company": raw.get("companyName"),
                  "url": raw.get("url"), "location": raw.get("location"),
-                 "workType": raw.get("workType"), "classification": reason}
+                 "workType": raw.get("workType"), "classification": reason, "remote_detail": classify(raw)}
         if normalized:
             entry["remote_region"] = normalized["remote_region"]
         if reason == "unconfirmed_remote" and ai_used < ai_limit:
