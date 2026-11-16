@@ -1,0 +1,90 @@
+"""Manual-only Apify LinkedIn jobs ingestion. Third-party scraper, not LinkedIn API."""
+import json
+import os
+import re
+from datetime import datetime, timezone
+from urllib.parse import quote
+from urllib.request import Request, urlopen
+
+from dotenv import load_dotenv
+
+from app.diagnostics import summarize
+from app.discovery import TARGET_TERMS, parse_monthly_usd
+from app.main import connect, score_job
+
+ACTOR = "valig/linkedin-jobs-scraper"
+API_ROOT = "https://api.apify.com/v2/acts"
+DEFAULT_INPUT = {"easyApply": False, "keywords": "python developer", "location": "remote", "under10Applicants": False, "limit": 100}
+RESTRICTED = ("united states only", "us only", "usa only", "uk only", "europe only", "eu only", "canada only", "must be based in", "must reside in", "residents only", "work authorization required")
+GLOBAL = ("worldwide", "work from anywhere", "anywhere in the world", "globally", "global remote", "remote worldwide")
+
+
+def evaluate(raw):
+    if not isinstance(raw, dict):
+        return "missing_fields", None
+    title = str(raw.get("title") or "").strip()
+    company = str(raw.get("companyName") or "").strip()
+    url = str(raw.get("url") or "").strip()
+    if not title or not company or not url.startswith("https://"):
+        return "missing_fields", None
+    if not any(term in title.lower() for term in TARGET_TERMS):
+        return "unrelated_title", None
+    work_type = str(raw.get("workType") or "").lower().strip()
+    location = str(raw.get("location") or "").lower().strip()
+    description = str(raw.get("description") or "")
+    lower = (location + " " + description).lower()
+    if "hybrid" in work_type or "on-site" in work_type or "onsite" in work_type or "hybrid" in location:
+        return "not_remote", None
+    if work_type and "remote" not in work_type:
+        return "not_remote", None
+    if not work_type and "remote" not in location and not any(s in lower for s in GLOBAL):
+        return "unconfirmed_remote", None
+    if any(term in lower for term in RESTRICTED):
+        return "restricted_region", None
+    salary = parse_monthly_usd(str(raw.get("salary") or ""))
+    if salary is not None and salary < 2000:
+        return "below_salary_target", None
+    posted = str(raw.get("postedDate") or "").strip()
+    if posted:
+        try:
+            dt = datetime.fromisoformat(posted.replace(" UTC", "+00:00").replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            if (datetime.now(timezone.utc) - dt).days > 30:
+                return "expired", None
+        except ValueError:
+            pass
+    region = "worldwide" if any(s in lower for s in GLOBAL) else "unknown"
+    description = re.sub(r"<[^>]+>", " ", description).strip()
+    return "eligible", {
+        "title": title[:300], "company": company[:300], "url": url[:2000],
+        "description": description[:10000], "salary_monthly": salary,
+        "remote_region": region, "score": score_job(title, description, salary, region),
+        "source": "LinkedIn (Apify)", "source_url": url[:2000],
+    }
+
+
+def fetch_jobs(limit=100, opener=urlopen):
+    """Triggers a billable run only when explicitly invoked by the user."""
+    if not 1 <= limit <= 100:
+        raise ValueError("limit must be 1-100")
+    load_dotenv()
+    token = os.getenv("APIFY_API_TOKEN", "").strip()
+    if not token:
+        raise ValueError("Set APIFY_API_TOKEN in your local .env file")
+    actor = os.getenv("APIFY_ACTOR_ID", ACTOR).strip().replace("/", "~")
+    payload = dict(DEFAULT_INPUT, limit=limit)
+    url = f"{API_ROOT}/{quote(actor, safe='~')}/run-sync-get-dataset-items"
+    request = Request(url, data=json.dumps(payload).encode("utf-8"), method="POST",
+                      headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json",
+                               "User-Agent": "JobHunterAI/0.5"})
+    with opener(request, timeout=180) as response:
+        data = json.load(response)
+    if not isinstance(data, list):
+        raise ValueError("Unexpected Apify dataset response")
+    return data
+
+
+def run(limit=100, jobs=None):
+    """Use jobs=... for free offline testing; otherwise invokes paid Apify actor."""
+    return summarize(fetch_jobs(limit) if jobs is None else jobs, evaluate, connect)
