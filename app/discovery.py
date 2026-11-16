@@ -64,6 +64,7 @@ def normalize(job):
         "description": description[:10000], "salary_monthly": salary,
         "remote_region": region,
         "score": score_job(title, description, salary, region),
+        "source": "Remotive", "source_url": url[:2000],
     }
 
 
@@ -88,8 +89,8 @@ def ingest(jobs):
                 continue
             result = con.execute(
                 """INSERT OR IGNORE INTO jobs
-                (title, company, url, description, salary_monthly, remote_region, score)
-                VALUES (:title, :company, :url, :description, :salary_monthly, :remote_region, :score)""",
+                (title, company, url, description, salary_monthly, remote_region, score, source, source_url)
+                VALUES (:title, :company, :url, :description, :salary_monthly, :remote_region, :score, :source, :source_url)""",
                 job,
             )
             added += result.rowcount
