@@ -65,6 +65,10 @@ def review_cache(ai_limit=0):
         raise ValueError("No cached datasets. Recover existing runs first.")
     records = {}
     for path in sorted(CACHE_DIR.glob("*.json")):
+        # Only recovered Apify run files are source datasets; the generated
+        # review_report.json must never be ingested as jobs on later reviews.
+        if not re.fullmatch(r"[A-Za-z0-9]{17}\\.json", path.name):
+            continue
         items = json.loads(path.read_text(encoding="utf-8"))
         if not isinstance(items, list):
             continue
