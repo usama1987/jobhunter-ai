@@ -1,4 +1,4 @@
-from app.linkedin import evaluate, DEFAULT_INPUT
+from app.linkedin import evaluate, DEFAULT_INPUT, SEARCH_TERMS
 
 def sample(**updates):
     job = {"title": "Python Backend Developer", "companyName": "Example",
@@ -9,7 +9,7 @@ def sample(**updates):
     return job
 
 def test_actor_input_contract():
-    assert DEFAULT_INPUT == {"easyApply": False, "keywords": "python developer", "location": "remote", "under10Applicants": False, "limit": 100}
+    assert DEFAULT_INPUT == {"easyApply": False, "keywords": "Python Developer", "location": "remote", "under10Applicants": False, "limit": 20}
 
 def test_worldwide_remote():
     reason, job = evaluate(sample())
@@ -36,3 +36,20 @@ def test_reject_no_remote_evidence():
 
 def test_reject_low_salary():
     assert evaluate(sample(salary="$1200/month"))[0] == "below_salary_target"
+
+def test_all_search_categories_present():
+    assert len(SEARCH_TERMS) == 26
+    assert {"FastAPI Developer", "Shopify Developer", "WordPress Developer",
+            "AI Engineer", "Software Architect"} <= set(SEARCH_TERMS)
+
+def test_description_rejects_onsite_even_when_remote_tagged():
+    assert evaluate(sample(description="Interview offline. Job Location: Indore (Onsite)"))[0] == "not_remote"
+
+def test_description_rejects_in_person_only():
+    assert evaluate(sample(description="In-person only. Must relocate."))[0] == "not_remote"
+
+def test_description_rejects_region_limited_remote():
+    assert evaluate(sample(description="You can work remotely from anywhere in Bulgaria."))[0] == "restricted_region"
+
+def test_shopify_title_supported():
+    assert evaluate(sample(title="Shopify Developer"))[0] == "eligible"
