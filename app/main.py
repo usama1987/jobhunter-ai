@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 import sqlite3
+import json
 
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import RedirectResponse
@@ -60,6 +61,46 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="JobHunter AI", lifespan=lifespan)
 
 
+def cached_linkedin_review():
+    """Read cached classifications without mutating SQLite or running APIs."""
+    groups = {"priority": [], "verify": [], "rejected": []}
+    path = BASE / "apify_cache" / "review_report.json"
+    if not path.is_file():
+        return groups
+    try:
+        items = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return groups
+    if not isinstance(items, list):
+        return groups
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        detail = item.get("remote_detail") or {}
+        if not isinstance(detail, dict):
+            detail = {}
+        status = detail.get("status") or item.get("classification", "remote_unverified")
+        status = {"eligible": "remote_confirmed",
+                  "unconfirmed_remote": "remote_unverified",
+                  "not_remote": "onsite",
+                  "restricted_region": "region_restricted"}.get(status, status)
+        url = str(item.get("url") or "")
+        if not url.startswith("https://"):
+            continue
+        record = {
+            "title": str(item.get("title") or "Untitled")[:300],
+            "company": str(item.get("company") or "")[:300],
+            "url": url,
+            "status": status,
+            "eligibility": detail.get("eligibility", "unknown"),
+            "evidence": str(detail.get("evidence") or "")[:250],
+        }
+        bucket = ("priority" if status == "remote_confirmed" else
+                  "verify" if status == "remote_unverified" else "rejected")
+        groups[bucket].append(record)
+    return groups
+
+
 @app.get("/")
 def dashboard(request: Request, region: str = "all", source: str = "all"):
     with connect() as con:
@@ -69,7 +110,7 @@ def dashboard(request: Request, region: str = "all", source: str = "all"):
         jobs = [j for j in jobs if j["remote_region"] == region]
     if source == "linkedin":
         jobs = [j for j in jobs if (j["source"] or "").startswith("LinkedIn")]
-    return templates.TemplateResponse(request, "index.html", {"jobs": jobs, "counts": counts, "region": region, "source_filter": source})
+    return templates.TemplateResponse(request, "index.html", {"jobs": jobs, "counts": counts, "region": region, "source_filter": source, "linkedin_review": cached_linkedin_review()})
 
 
 @app.post("/jobs")
