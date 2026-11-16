@@ -30,6 +30,12 @@ def initialize():
             score INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         )""")
+        existing = {r[1] for r in con.execute("PRAGMA table_info(jobs)")}
+        for name, sql_type in (("ai_score", "INTEGER"), ("ai_verdict", "TEXT"),
+                               ("ai_summary", "TEXT"), ("ai_eligibility", "TEXT"),
+                               ("ai_salary_fit", "TEXT"), ("ai_details", "TEXT")):
+            if name not in existing:
+                con.execute(f"ALTER TABLE jobs ADD COLUMN {name} {sql_type}")
 
 
 def score_job(title: str, description: str, salary_monthly: int | None, remote_region: str) -> int:
