@@ -19,7 +19,7 @@
 <div class="border-t pt-2 text-sm"><a class="font-semibold text-indigo-700 hover:underline" href="{{item.url}}" target="_blank" rel="noopener noreferrer">{{item.title}}</a>
 <div class="text-slate-600">{{item.company}}</div>
 <div class="text-xs text-slate-500">Reason: {{item.status|replace('_',' ')}}{% if item.evidence %} · {{item.evidence}}{% endif %}</div>
-<div class="text-xs text-slate-500">Pakistan eligibility: {{item.eligibility}}</div></div>
+<div class="text-xs text-slate-500">Arrangement: {{item.arrangement}} · Coverage: {{item.coverage}} · Pakistan eligibility: {{item.eligibility}}</div></div>
 {% else %}<p class="text-sm text-slate-400">No cached jobs in this group.</p>{% endfor %}
 </div></div>
 {% endfor %}
@@ -30,21 +30,21 @@
 <input name="company" required placeholder="Company" class="border rounded-lg p-2">
 <input name="url" type="url" required placeholder="https://job-posting-url" class="border rounded-lg p-2">
 <input name="salary_monthly" type="number" min="0" placeholder="Monthly USD salary" class="border rounded-lg p-2">
-<select name="remote_region" class="border rounded-lg p-2"><option value="unknown">Eligibility unknown</option><option value="worldwide">Worldwide</option><option value="pakistan">Pakistan eligible</option><option value="restricted">Restricted</option></select>
+<select name="remote_region" class="border rounded-lg p-2"><option value="unknown">Coverage unknown</option><option value="worldwide">Worldwide coverage</option><option value="pakistan">Pakistan listed</option><option value="restricted">Region restricted</option></select>
 <input name="description" placeholder="Description / skills" class="border rounded-lg p-2">
 <button class="bg-indigo-600 text-white rounded-lg px-5 py-2 md:col-span-3">Save job</button>
 </form></section>
 <form method="get" action="/" class="flex flex-wrap gap-3 items-center mb-3">
 <label class="text-sm font-semibold">Job filters</label>
 <select name="source" class="border rounded-lg p-2"><option value="all">All sources</option><option value="linkedin" {% if source_filter == 'linkedin' %}selected{% endif %}>LinkedIn only</option></select>
-<select name="region" class="border rounded-lg p-2"><option value="all">All regions</option><option value="worldwide" {% if region == 'worldwide' %}selected{% endif %}>Confirmed worldwide</option><option value="unknown" {% if region == 'unknown' %}selected{% endif %}>Remote — eligibility unverified</option></select>
+<select name="region" class="border rounded-lg p-2"><option value="all">All regions</option><option value="worldwide" {% if region == 'worldwide' %}selected{% endif %}>Worldwide coverage</option><option value="unknown" {% if region == 'unknown' %}selected{% endif %}>Coverage unknown</option></select>
 <button class="bg-indigo-600 text-white rounded-lg px-4 py-2">Filter</button>
 </form>
 <section class="bg-white rounded-xl border overflow-x-auto"><table class="w-full text-sm">
-<thead class="bg-slate-100"><tr><th class="text-left p-3">Job</th><th class="p-3">Salary / month</th><th class="p-3">Region</th><th class="p-3">Heuristic score</th><th class="p-3">AI fit</th><th class="p-3">Status</th></tr></thead>
+<thead class="bg-slate-100"><tr><th class="text-left p-3">Job</th><th class="p-3">Salary / month</th><th class="p-3">Work arrangement</th><th class="p-3">Remote coverage</th><th class="p-3">Pakistan eligibility</th><th class="p-3">Heuristic score</th><th class="p-3">AI fit</th><th class="p-3">Status</th></tr></thead>
 <tbody>{% for job in jobs %}<tr class="border-t"><td class="p-3"><a href="{{job.url}}" target="_blank" rel="noopener noreferrer" class="font-semibold text-indigo-700">{{job.title}}</a><div class="text-slate-500">{{job.company}}</div>{% if job.source == "Himalayas" and job.source_url %}<div class="text-xs mt-1">Source: <a class="text-indigo-600 underline" href="{{job.source_url}}" target="_blank" rel="noopener noreferrer">Himalayas</a></div>{% elif job.source %}<div class="text-xs text-slate-500 mt-1">Source: {{job.source}}</div>{% endif %}</td>
-<td class="p-3 text-center">{{'$' ~ job.salary_monthly if job.salary_monthly is not none else 'Unknown'}}</td><td class="p-3 text-center">{{job.remote_region}}</td><td class="p-3 text-center">{{job.score}}/100</td><td class="p-3 text-center">{% if job.ai_score is not none %}<strong>{{job.ai_score}}/100</strong><div class="text-xs text-slate-500">{{job.ai_verdict}} · Eligibility: {{job.ai_eligibility}} · Salary: {{job.ai_salary_fit}}</div><div class="text-xs text-slate-500 max-w-xs">{{job.ai_summary}}</div>{% else %}<span class="text-slate-400">Not assessed</span>{% endif %}</td>
+<td class="p-3 text-center">{{'$' ~ job.salary_monthly if job.salary_monthly is not none else 'Unknown'}}</td><td class="p-3 text-center">{% set review = review_by_url.get(job.url) %}{{review.arrangement if review else "Unverified"}}</td><td class="p-3 text-center">{{job.remote_region}}</td><td class="p-3 text-center">{{review.eligibility if review else "unknown"}}</td><td class="p-3 text-center">{{job.score}}/100</td><td class="p-3 text-center">{% if job.ai_score is not none %}<strong>{{job.ai_score}}/100</strong><div class="text-xs text-slate-500">{{job.ai_verdict}} · Eligibility: {{job.ai_eligibility}} · Salary: {{job.ai_salary_fit}}</div><div class="text-xs text-slate-500 max-w-xs">{{job.ai_summary}}</div>{% else %}<span class="text-slate-400">Not assessed</span>{% endif %}</td>
 <td class="p-3"><form method="post" action="/jobs/{{job.id}}/status"><select name="status" onchange="this.form.submit()" class="border rounded p-1">{% for status in ['discovered','shortlisted','applied','interview','rejected','offer'] %}<option value="{{status}}" {% if job.status==status %}selected{% endif %}>{{status}}</option>{% endfor %}</select></form></td></tr>
-{% else %}<tr><td colspan="6" class="p-8 text-center text-slate-500">No jobs yet. Add your first opportunity above.</td></tr>{% endfor %}</tbody></table></section>
-<p class="mt-5 text-xs text-slate-500">Heuristic scores are keyword-based. AI fit scores are subjective assessments, not hiring probabilities. Verify salary and Pakistan eligibility with employers before applying.</p>
+{% else %}<tr><td colspan="8" class="p-8 text-center text-slate-500">No jobs yet. Add your first opportunity above.</td></tr>{% endfor %}</tbody></table></section>
+<p class="mt-5 text-xs text-slate-500">Heuristic scores are keyword-based. AI fit scores are subjective assessments, not hiring probabilities. Worldwide coverage is advertised reach, not proof of Pakistan hiring eligibility. Verify salary and eligibility with employers before applying.</p>
 </main></body></html>
