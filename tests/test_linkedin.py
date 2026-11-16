@@ -53,3 +53,15 @@ def test_description_rejects_region_limited_remote():
 
 def test_shopify_title_supported():
     assert evaluate(sample(title="Shopify Developer"))[0] == "eligible"
+
+def test_full_time_is_not_onsite():
+    assert evaluate(sample(workType="Full-time", location="Remote"))[0] == "eligible"
+
+def test_remote_in_title_with_full_time_employment():
+    assert evaluate(sample(title="Software Engineer (Django) - Remote Work", workType="Full-time", location="Brazil"))[0] == "eligible"
+
+def test_full_time_without_remote_evidence_is_unconfirmed():
+    assert evaluate(sample(workType="Full-time", location="Paris, France", description="Build APIs"))[0] == "unconfirmed_remote"
+
+def test_full_time_onsite_description_rejected():
+    assert evaluate(sample(workType="Full-time", location="Remote", description="This is an on-site role"))[0] == "not_remote"
