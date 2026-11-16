@@ -93,6 +93,8 @@ def cached_linkedin_review():
             "url": url,
             "status": status,
             "eligibility": detail.get("eligibility", "unknown"),
+            "coverage": detail.get("coverage", "worldwide" if detail.get("global_claim") else "unknown"),
+            "arrangement": ("Remote" if status == "remote_confirmed" else "Hybrid" if status == "hybrid" else "Onsite" if status == "onsite" else "Unverified"),
             "evidence": str(detail.get("evidence") or "")[:250],
         }
         bucket = ("priority" if status == "remote_confirmed" else
@@ -110,7 +112,9 @@ def dashboard(request: Request, region: str = "all", source: str = "all"):
         jobs = [j for j in jobs if j["remote_region"] == region]
     if source == "linkedin":
         jobs = [j for j in jobs if (j["source"] or "").startswith("LinkedIn")]
-    return templates.TemplateResponse(request, "index.html", {"jobs": jobs, "counts": counts, "region": region, "source_filter": source, "linkedin_review": cached_linkedin_review()})
+    review = cached_linkedin_review()
+    by_url = {item["url"]: item for group in review.values() for item in group}
+    return templates.TemplateResponse(request, "index.html", {"jobs": jobs, "counts": counts, "region": region, "source_filter": source, "linkedin_review": review, "review_by_url": by_url})
 
 
 @app.post("/jobs")
