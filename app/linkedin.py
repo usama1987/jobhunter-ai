@@ -53,11 +53,20 @@ def evaluate(raw):
     location = str(raw.get("location") or "").lower().strip()
     description = str(raw.get("description") or "")
     lower = (location + " " + description).lower()
-    if "hybrid" in work_type or "on-site" in work_type or "onsite" in work_type or "hybrid" in location:
+    # Apify's workType can be an employment type (e.g. "Full-time"), not
+    # a workplace arrangement. Do not treat it as proof of on-site work.
+    if any(term in work_type for term in ("hybrid", "on-site", "onsite", "on site")) or "hybrid" in location:
         return "not_remote", None
-    if work_type and "remote" not in work_type:
-        return "not_remote", None
-    if not work_type and "remote" not in location and not any(s in lower for s in GLOBAL):
+    remote_evidence = (
+        "remote" in work_type
+        or "remote" in location
+        or bool(re.search(r"\\bremote (?:work|working|position|role|job)\\b", title.lower()))
+        or any(term in description.lower() for term in (
+            "fully remote", "100% remote", "remote-first", "remote position",
+            "remote role", "work remotely", "work from home", "remote work",
+            "work from anywhere", "anywhere in the world"))
+    )
+    if not remote_evidence:
         return "unconfirmed_remote", None
     if any(term in description.lower() for term in ONSITE):
         return "not_remote", None
