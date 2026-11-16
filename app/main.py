@@ -2,6 +2,8 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 import sqlite3
 import json
+import threading
+import secrets
 
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import RedirectResponse
@@ -11,6 +13,9 @@ BASE = Path(__file__).resolve().parent.parent
 DB = BASE / "jobs.db"
 templates = Jinja2Templates(directory=str(BASE / "app" / "templates"))
 KEYWORDS = ("python", "fastapi", "backend", "full stack", "fullstack", "saas", "ai developer", "api")
+SEARCH_LOCK = threading.Lock()
+SEARCH_TOKEN = secrets.token_urlsafe(24)
+SEARCH_TERMS = ("Python Developer", "Backend Engineer", "FastAPI Developer", "Python Backend Developer", "SaaS Developer", "AI Integration Engineer", "Shopify Developer", "WordPress Developer")
 STATUSES = ("discovered", "shortlisted", "applied", "interview", "rejected", "offer")
 
 
@@ -114,7 +119,28 @@ def dashboard(request: Request, region: str = "all", source: str = "all"):
         jobs = [j for j in jobs if (j["source"] or "").startswith("LinkedIn")]
     review = cached_linkedin_review()
     by_url = {item["url"]: item for group in review.values() for item in group}
-    return templates.TemplateResponse(request, "index.html", {"jobs": jobs, "counts": counts, "region": region, "source_filter": source, "linkedin_review": review, "review_by_url": by_url})
+    return templates.TemplateResponse(request, "index.html", {"jobs": jobs, "counts": counts, "region": region, "source_filter": source, "linkedin_review": review, "review_by_url": by_url, "search_terms": SEARCH_TERMS, "search_token": SEARCH_TOKEN, "search_result": request.query_params.get("search_result", "")})
+
+
+
+@app.post("/linkedin/run")
+def run_linkedin_search(token: str = Form(...), keyword: str = Form(...)):
+    """One explicitly confirmed, capped Actor run; no scheduler or background worker."""
+    if not secrets.compare_digest(token, SEARCH_TOKEN) or keyword not in SEARCH_TERMS:
+        return RedirectResponse("/?search_result=invalid", status_code=303)
+    if not SEARCH_LOCK.acquire(blocking=False):
+        return RedirectResponse("/?search_result=busy", status_code=303)
+    try:
+        from app.linkedin import fetch_jobs, evaluate
+        from app.diagnostics import summarize
+        raw = fetch_jobs(limit=10, keyword=keyword, max_charge_usd=0.50)
+        initialize()
+        result = summarize(raw, evaluate, connect)
+        return RedirectResponse("/?search_result=" + ("completed-" + str(result["counts"].get("added", 0))), status_code=303)
+    except Exception:
+        return RedirectResponse("/?search_result=failed-check-server-log", status_code=303)
+    finally:
+        SEARCH_LOCK.release()
 
 
 @app.post("/jobs")
