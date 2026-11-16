@@ -7,6 +7,22 @@
 {% for status in ['discovered','shortlisted','applied','interview','rejected','offer'] %}
 <div class="bg-white rounded-xl p-4 border"><div class="text-xs uppercase text-slate-500">{{status}}</div><div class="text-2xl font-semibold">{{counts.get(status,0)}}</div></div>
 {% endfor %}</div>
+<section class="bg-white rounded-xl border p-5 mb-8">
+<h2 class="text-xl font-semibold mb-2">LinkedIn — Run New Search</h2>
+<p class="text-sm text-slate-500 mb-3">Manual only. One keyword, up to 10 results, Apify run cap $0.50. No scheduled searches or OpenAI calls.</p>
+{% if search_result %}<p class="mb-3 text-sm font-semibold text-indigo-700">Last search: {{search_result|replace('-',' ')}}</p>{% endif %}
+<details class="border rounded-lg p-3">
+<summary class="cursor-pointer font-semibold text-indigo-700">Run New Search</summary>
+<form action="/linkedin/run" method="post" class="mt-4 space-y-3">
+<input type="hidden" name="token" value="{{search_token}}">
+<label class="block text-sm font-semibold" for="linkedin-keyword">LinkedIn keyword</label>
+<select id="linkedin-keyword" name="keyword" class="w-full border rounded-lg p-2">{% for term in search_terms %}<option value="{{term}}">{{term}}</option>{% endfor %}</select>
+<p class="text-sm text-amber-700">This will start one potentially billable Apify Actor run. The per-run charge limit is $0.50; results may be incomplete if the cap is reached.</p>
+<label class="flex gap-2 text-sm"><input type="checkbox" required> I authorize this single paid LinkedIn search (maximum $0.50).</label>
+<button type="submit" class="bg-indigo-600 text-white rounded-lg px-5 py-2">Confirm $0.50 Search</button>
+</form>
+</details>
+</section>
 <section class="mb-8">
 <h2 class="text-xl font-semibold mb-2">LinkedIn cached review</h2>
 <p class="text-sm text-slate-500 mb-4">Read-only classification from apify_cache/review_report.json. Remote does not prove Pakistan eligibility. No API calls.</p>
