@@ -2,6 +2,10 @@
 import json
 import os
 from urllib.request import Request, urlopen
+from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parent.parent / '.env')
 
 MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
 API_URL = "https://api.openai.com/v1/chat/completions"
@@ -20,7 +24,7 @@ def candidate_profile():
 def assess(job, opener=urlopen):
     key = os.getenv("OPENAI_API_KEY", "").strip()
     if not key:
-        raise RuntimeError("Set OPENAI_API_KEY in your local environment before AI assessment")
+        raise RuntimeError("Add OPENAI_API_KEY to the .env file in your project root before AI assessment")
     profile = candidate_profile()
     prompt = {
         "candidate": profile,
