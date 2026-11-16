@@ -70,7 +70,7 @@ def classify(raw):
         return match.group(0) if match else None
     # Explicit vacancy-specific hybrid/on-site language takes priority over
     # company boilerplate describing other available work arrangements.
-    hybrid = found(r"\bhybrid\b|télétravail possible \(hybride\)|hybrid model")
+    hybrid = found(r"\bhybrid\b|télétravail possible \(hybride\)|hybrid model|\b\d+\s*j\s*de\s*tt\s*/\s*semaine\b")
     onsite = found(r"\b(?:on[- ]site|in[- ]person only|office[- ]based|must relocate|work from office|offline interview|interview offline)\b")
     onsite_interview = found(r"interview (?:at|in) (?:our|the) office|échange dans nos bureaux")
     if "hybrid" in location or "hybrid" in work_type or hybrid:
@@ -89,8 +89,9 @@ def classify(raw):
     pakistan = found(r"\b(?:hiring|applicants|candidates|work from|based in|located in)\s+(?:from\s+)?pakistan\b|\bpakistan\s+(?:eligible|accepted|welcome)\b")
     anywhere = found(r"100% remote work \(from anywhere\)|remote worldwide|work from anywhere|anywhere in the world")
     eligibility = "pakistan" if pakistan else "unknown"
+    coverage = "worldwide" if anywhere or "worldwide" in location else "unknown"
     return {"status": "remote_confirmed", "eligibility": eligibility,
-            "evidence": remote, "global_claim": bool(anywhere)}
+            "coverage": coverage, "evidence": remote, "global_claim": bool(anywhere)}
 
 
 def evaluate(raw):
@@ -108,7 +109,7 @@ def evaluate(raw):
     salary = parse_monthly_usd(str(raw.get("salary") or ""))
     if salary is not None and salary < 2000:
         return "below_salary_target", None
-    region = "pakistan" if detail["eligibility"] == "pakistan" else "unknown"
+    region = detail.get("coverage", "unknown")
     return "eligible", {
         "title": title[:300], "company": company[:300], "url": url[:2000],
         "description": description[:10000], "salary_monthly": salary,
