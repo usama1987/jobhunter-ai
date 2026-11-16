@@ -10,10 +10,18 @@
 <section class="bg-white rounded-xl border p-5 mb-8">
 <h2 class="text-xl font-semibold mb-2">LinkedIn — Run New Search</h2>
 <p class="text-sm text-slate-500 mb-3">Manual only. One keyword, up to 10 results, Apify run cap $0.50. No scheduled searches or OpenAI calls.</p>
-{% if search_result %}<p class="mb-3 text-sm font-semibold text-indigo-700">Last search: {{search_result|replace('-',' ')}}</p>{% endif %}
+{% if search_result == "busy" %}
+<p class="mb-3 text-sm font-semibold text-amber-700" role="status">A LinkedIn search is already processing. No additional search was started by this request. Wait for the first request to finish before trying again.</p>
+{% elif search_result == "invalid" %}
+<p class="mb-3 text-sm text-red-700" role="alert">Search request rejected. Refresh the page and try again.</p>
+{% elif search_result == "failed-check-server-log" %}
+<p class="mb-3 text-sm text-red-700" role="alert">Search failed or its outcome is unknown. Check the server log and Apify runs before retrying to avoid duplicate charges.</p>
+{% elif search_result.startswith("completed-") %}
+<p class="mb-3 text-sm text-green-700" role="status">Search finished. {{ search_result.split("-")[-1] }} new jobs saved. Check the jobs table below.</p>
+{% endif %}
 <details class="border rounded-lg p-3">
 <summary class="cursor-pointer font-semibold text-indigo-700">Run New Search</summary>
-<form action="/linkedin/run" method="post" class="mt-4 space-y-3">
+<form action="/linkedin/run" method="post" class="mt-4 space-y-3" onsubmit="if(this.dataset.submitted==='yes')return false;this.dataset.submitted='yes';this.querySelector('button[type=submit]').disabled=true;this.querySelector('button[type=submit]').textContent='Searching LinkedIn… please wait';return true;">
 <input type="hidden" name="token" value="{{search_token}}">
 <label class="block text-sm font-semibold" for="linkedin-keyword">LinkedIn keyword</label>
 <select id="linkedin-keyword" name="keyword" class="w-full border rounded-lg p-2">{% for term in search_terms %}<option value="{{term}}">{{term}}</option>{% endfor %}</select>
