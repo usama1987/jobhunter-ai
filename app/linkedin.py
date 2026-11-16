@@ -59,7 +59,11 @@ def evaluate(raw):
         return "not_remote", None
     if not work_type and "remote" not in location and not any(s in lower for s in GLOBAL):
         return "unconfirmed_remote", None
-    if any(term in description.lower() for term in ONSITE):\n        return "not_remote", None\n    if any(term in lower for term in REGIONAL_REMOTE):\n        return "restricted_region", None\n    if any(term in lower for term in RESTRICTED):
+    if any(term in description.lower() for term in ONSITE):
+        return "not_remote", None
+    if any(term in lower for term in REGIONAL_REMOTE):
+        return "restricted_region", None
+    if any(term in lower for term in RESTRICTED):
         return "restricted_region", None
     salary = parse_monthly_usd(str(raw.get("salary") or ""))
     if salary is not None and salary < 2000:
