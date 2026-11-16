@@ -39,44 +39,15 @@ RESTRICTED = ("united states only", "us only", "usa only", "uk only", "europe on
 GLOBAL = ("worldwide", "work from anywhere", "anywhere in the world", "globally", "global remote", "remote worldwide")
 
 
-def evaluate(raw):
+def classify(raw):
+    """Classify remote evidence separately from Pakistan hiring eligibility."""
     if not isinstance(raw, dict):
-        return "missing_fields", None
+        return {"status": "missing_fields", "eligibility": "unknown", "evidence": ""}
     title = str(raw.get("title") or "").strip()
     company = str(raw.get("companyName") or "").strip()
     url = str(raw.get("url") or "").strip()
     if not title or not company or not url.startswith("https://"):
-        return "missing_fields", None
-    if not any(term in title.lower() for term in TITLE_TERMS):
-        return "unrelated_title", None
-    work_type = str(raw.get("workType") or "").lower().strip()
-    location = str(raw.get("location") or "").lower().strip()
-    description = str(raw.get("description") or "")
-    lower = (location + " " + description).lower()
-    # Apify's workType can be an employment type (e.g. "Full-time"), not
-    # a workplace arrangement. Do not treat it as proof of on-site work.
-    if any(term in work_type for term in ("hybrid", "on-site", "onsite", "on site")) or "hybrid" in location:
-        return "not_remote", None
-    remote_evidence = (
-        "remote" in work_type
-        or "remote" in location
-        or bool(re.search(r"\bremote (?:work|working|position|role|job)\b", title.lower()))
-        or any(term in description.lower() for term in (
-            "fully remote", "100% remote", "remote-first", "remote position",
-            "remote role", "work remotely", "work from home", "remote work",
-            "work from anywhere", "anywhere in the world"))
-    )
-    if not remote_evidence:
-        return "unconfirmed_remote", None
-    if any(term in description.lower() for term in ONSITE):
-        return "not_remote", None
-    if any(term in lower for term in REGIONAL_REMOTE):
-        return "restricted_region", None
-    if any(term in lower for term in RESTRICTED):
-        return "restricted_region", None
-    salary = parse_monthly_usd(str(raw.get("salary") or ""))
-    if salary is not None and salary < 2000:
-        return "below_salary_target", None
+        return {"status": "missing_fields", "eligibility": "unknown", "evidence": ""}
     posted = str(raw.get("postedDate") or "").strip()
     if posted:
         try:
@@ -84,11 +55,60 @@ def evaluate(raw):
             if dt.tzinfo is None:
                 dt = dt.replace(tzinfo=timezone.utc)
             if (datetime.now(timezone.utc) - dt).days > 30:
-                return "expired", None
+                return {"status": "expired", "eligibility": "unknown", "evidence": posted}
         except ValueError:
             pass
-    region = "worldwide" if any(s in location or s in description.lower() for s in GLOBAL) else "unknown"
-    description = re.sub(r"<[^>]+>", " ", description).strip()
+    if not any(term in title.lower() for term in TITLE_TERMS):
+        return {"status": "unrelated_title", "eligibility": "unknown", "evidence": title}
+    description = re.sub(r"<[^>]+>", " ", str(raw.get("description") or "")).lower()
+    location = str(raw.get("location") or "").lower()
+    # This actor's workType is frequently an INDUSTRY, not a remote-work flag.
+    work_type = str(raw.get("workType") or "").lower()
+    text = title.lower() + " " + description
+    def found(pattern):
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        return match.group(0) if match else None
+    # Explicit vacancy-specific hybrid/on-site language takes priority over
+    # company boilerplate describing other available work arrangements.
+    hybrid = found(r"\\bhybrid\\b|télétravail possible \\(hybride\\)|hybrid model")
+    onsite = found(r"\\b(?:on[- ]site|in[- ]person only|office[- ]based|must relocate|work from office)\\b")
+    onsite_interview = found(r"interview (?:at|in) (?:our|the) office|échange dans nos bureaux")
+    if "hybrid" in location or "hybrid" in work_type or hybrid:
+        return {"status": "hybrid", "eligibility": "restricted", "evidence": hybrid or location}
+    if "onsite" in work_type or "on-site" in work_type or onsite or onsite_interview:
+        return {"status": "onsite", "eligibility": "restricted", "evidence": onsite or onsite_interview or work_type}
+    restricted = found(r"\\b(?:united states|usa|uk|canada|europe|eu) only\\b|remote(?:ly)? (?:from anywhere )?in [A-Z][a-z]+|must (?:reside|live|be located|be based) in|work authorization required")
+    if restricted:
+        return {"status": "region_restricted", "eligibility": "restricted", "evidence": restricted}
+    remote = found(r"100% remote|fully remote|remote[- ]first|remote (?:work|working|position|role|job)|work remotely|work from home|work from anywhere|anywhere in the world|formato de trabalho:\\s*remoto|\\btrabalho remoto\\b|\\bteletrabalho\\b|\\btélétravail complet\\b")
+    if not remote and ("remote" in location or "remoto" in location or work_type.strip() == "remote"):
+        remote = location or work_type
+    if not remote:
+        return {"status": "remote_unverified", "eligibility": "unknown", "evidence": ""}
+    # Explicit Pakistan inclusion is stronger than a generic 'worldwide' slogan.
+    pakistan = found(r"\\b(?:hiring|applicants|candidates|work from|based in|located in)\\s+(?:from\\s+)?pakistan\\b|\\bpakistan\\s+(?:eligible|accepted|welcome)\\b")
+    anywhere = found(r"100% remote work \\(from anywhere\\)|remote worldwide|work from anywhere|anywhere in the world")
+    eligibility = "pakistan" if pakistan else "unknown"
+    return {"status": "remote_confirmed", "eligibility": eligibility,
+            "evidence": remote, "global_claim": bool(anywhere)}
+
+
+def evaluate(raw):
+    detail = classify(raw)
+    status = detail["status"]
+    if status != "remote_confirmed":
+        reasons = {"hybrid": "not_remote", "onsite": "not_remote",
+                   "region_restricted": "restricted_region",
+                   "remote_unverified": "unconfirmed_remote"}
+        return reasons.get(status, status), None
+    title = str(raw["title"]).strip()
+    company = str(raw["companyName"]).strip()
+    url = str(raw["url"]).strip()
+    description = re.sub(r"<[^>]+>", " ", str(raw.get("description") or "")).strip()
+    salary = parse_monthly_usd(str(raw.get("salary") or ""))
+    if salary is not None and salary < 2000:
+        return "below_salary_target", None
+    region = "pakistan" if detail["eligibility"] == "pakistan" else "unknown"
     return "eligible", {
         "title": title[:300], "company": company[:300], "url": url[:2000],
         "description": description[:10000], "salary_monthly": salary,
