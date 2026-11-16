@@ -61,11 +61,11 @@ app = FastAPI(title="JobHunter AI", lifespan=lifespan)
 
 
 @app.get("/")
-def dashboard(request: Request):
+def dashboard(request: Request, region: str = "all", source: str = "all"):
     with connect() as con:
         jobs = con.execute("SELECT * FROM jobs WHERE expires_at IS NULL OR expires_at > strftime('%Y-%m-%dT%H:%M:%S', 'now') ORDER BY score DESC, created_at DESC").fetchall()
         counts = {r["status"]: r["n"] for r in con.execute("SELECT status, COUNT(*) n FROM jobs WHERE expires_at IS NULL OR expires_at > strftime('%Y-%m-%dT%H:%M:%S', 'now') GROUP BY status")}
-    return templates.TemplateResponse(request, "index.html", {"jobs": jobs, "counts": counts})
+    if region in ("worldwide", "unknown"):\n        jobs = [j for j in jobs if j["remote_region"] == region]\n    if source == "linkedin":\n        jobs = [j for j in jobs if (j["source"] or "").startswith("LinkedIn")]\n    return templates.TemplateResponse(request, "index.html", {"jobs": jobs, "counts": counts, "region": region, "source_filter": source})
 
 
 @app.post("/jobs")
